@@ -1,9 +1,9 @@
 
--- Mobs Api (30th July 2017)
+-- Mobs Api (4th August 2017)
 
 mobs = {}
 mobs.mod = "redo"
-mobs.version = "20170730"
+mobs.version = "20170804"
 
 
 -- Intllib
@@ -53,6 +53,14 @@ local remove_far = minetest.setting_getbool("remove_far_mobs")
 local difficulty = tonumber(minetest.setting_get("mob_difficulty")) or 1.0
 local show_health = minetest.setting_getbool("mob_show_health") ~= false
 local max_per_block = tonumber(minetest.setting_get("max_objects_per_block") or 99)
+
+-- Peaceful mode message so players will know there are no monsters
+if peaceful_only then
+	minetest.register_on_joinplayer(function(player)
+		minetest.chat_send_player(player:get_player_name(),
+			S("** Peaceful Mode Active - No Monsters Will Spawn"))
+	end)
+end
 
 -- calculate aoc range for mob count
 local aosrb = tonumber(minetest.setting_get("active_object_send_range_blocks"))
@@ -528,7 +536,7 @@ local node_ok = function(pos, fallback)
 		return node
 	end
 
-	return {name = fallback}
+	return minetest.registered_nodes[fallback] -- {name = fallback}
 end
 
 
@@ -1010,7 +1018,7 @@ local smart_mobs = function(self, s, p, dist, dtime)
 		-- round position to center of node to avoid stuck in walls
 		-- also adjust height for player models!
 		s.x = floor(s.x + 0.5)
-		s.y = floor(s.y + 0.5) - sheight
+--		s.y = floor(s.y + 0.5) - sheight
 		s.z = floor(s.z + 0.5)
 
 		local ssight, sground = minetest.line_of_sight(s, {
@@ -1080,7 +1088,8 @@ local smart_mobs = function(self, s, p, dist, dtime)
 						and node1 ~= "ignore"
 						and ndef1
 						and not ndef1.groups.level
-						and not ndef1.groups.unbreakable then
+						and not ndef1.groups.unbreakable
+						and not ndef1.groups.liquid then
 
 							minetest.set_node(s, {name = "air"})
 							minetest.add_item(s, ItemStack(node1))
@@ -1109,7 +1118,8 @@ local smart_mobs = function(self, s, p, dist, dtime)
 						and node1 ~= "ignore"
 						and ndef1
 						and not ndef1.groups.level
-						and not ndef1.groups.unbreakable then
+						and not ndef1.groups.unbreakable
+						and not ndef1.groups.liquid then
 
 							minetest.add_item(p1, ItemStack(node1))
 							minetest.set_node(p1, {name = "air"})
@@ -1123,7 +1133,8 @@ local smart_mobs = function(self, s, p, dist, dtime)
 						and node1 ~= "ignore"
 						and ndef1
 						and not ndef1.groups.level
-						and not ndef1.groups.unbreakable then
+						and not ndef1.groups.unbreakable
+						and not ndef1.groups.liquid then
 
 							minetest.add_item(p1, ItemStack(node1))
 							minetest.set_node(p1, {name = "air"})
@@ -1255,9 +1266,9 @@ local npc_attack = function(self)
 		return
 	end
 
+	local p, sp, obj, min_player
 	local s = self.object:getpos()
 	local min_dist = self.view_range + 1
-	local obj, min_player = nil, nil
 	local objs = minetest.get_objects_inside_radius(s, self.view_range)
 
 	for n = 1, #objs do
@@ -1266,7 +1277,7 @@ local npc_attack = function(self)
 
 		if obj and obj.type == "monster" then
 
-			local p = obj.object:getpos()
+			p = obj.object:getpos()
 
 			dist = get_distance(p, s)
 
