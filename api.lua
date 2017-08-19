@@ -1,9 +1,9 @@
 
--- Mobs Api (4th August 2017)
+-- Mobs Api (12th August 2017)
 
 mobs = {}
 mobs.mod = "redo"
-mobs.version = "20170804"
+mobs.version = "20170812"
 
 
 -- Intllib
@@ -259,6 +259,8 @@ local flight_check = function(self, pos_w)
 
 	local nod = self.standing_in
 	local def = minetest.registered_nodes[nod]
+
+	if not def then return false end -- nil check
 
 	if type(self.fly_in) == "string"
 	and (nod == self.fly_in or def.liquid_alternative_flowing ~= "") then
@@ -668,6 +670,8 @@ local do_jump = function(self)
 		return false
 	end
 
+self.facing_fence = false
+
 	-- something stopping us while moving?
 	if self.state ~= "stand"
 	and get_velocity(self) > 0.5
@@ -707,20 +711,24 @@ local do_jump = function(self)
 
 --print ("in front:", nod.name, pos.y + 0.5)
 
-	if (minetest.registered_items[nod.name].walkable
-	and not nod.name:find("fence")
-	and not nod.name:find("gate"))
-	or self.walk_chance == 0 then
+	if self.walk_chance == 0
+	or minetest.registered_items[nod.name].walkable then
 
-		local v = self.object:getvelocity()
+		if not nod.name:find("fence")
+		and not nod.name:find("gate") then
 
-		v.y = self.jump_height
+			local v = self.object:getvelocity()
 
-		set_animation(self, "jump") -- only when defined
+			v.y = self.jump_height
 
-		self.object:setvelocity(v)
+			set_animation(self, "jump") -- only when defined
 
-		mob_sound(self, self.sounds.jump)
+			self.object:setvelocity(v)
+
+			mob_sound(self, self.sounds.jump)
+		else
+			self.facing_fence = true
+		end
 
 		return true
 	end
@@ -751,7 +759,7 @@ local entity_physics = function(pos, radius)
 		objs[n]:punch(objs[n], 1.0, {
 			full_punch_interval = 1.0,
 			damage_groups = {fleshy = damage},
-		}, pos) -- was nil
+		}, pos)
 	end
 end
 
@@ -1489,6 +1497,7 @@ local do_states = function(self, dtime)
 		or self.order ~= "stand" then
 
 			if self.walk_chance ~= 0
+			and self.facing_fence ~= true
 			and random(1, 100) <= self.walk_chance
 			and is_at_cliff(self) == false then
 
@@ -1588,7 +1597,8 @@ local do_states = function(self, dtime)
 		-- stand for great fall in front
 		local temp_is_cliff = is_at_cliff(self)
 
-		if temp_is_cliff
+		if self.facing_fence == true
+		or temp_is_cliff
 		or random(1, 100) <= 30 then
 
 			set_velocity(self, 0)
@@ -2674,6 +2684,7 @@ minetest.register_entity(name, {
 	attack_animals = def.attack_animals or false,
 	specific_attack = def.specific_attack,
 	owner_loyal = def.owner_loyal,
+	facing_fence = false,
 	_cmi_is_mob = true,
 
 	on_blast = def.on_blast or do_tnt,
@@ -3028,6 +3039,7 @@ function mobs:boom(self, pos, radius)
 			radius = radius,
 			damage_radius = radius,
 			sound = self.sounds.explode,
+			explode_center = true,
 		})
 	else
 		minetest.sound_play(self.sounds.explode, {
